@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OCR OKUMA</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: #f3f4f6; color: #1f2937; padding-bottom: 70px; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 20px 16px; }
+  h1 { font-size: 1.5rem; margin: 0 0 14px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .tab { padding: 10px 18px; border: 0; border-radius: 8px; background: #e5e7eb; cursor: pointer; font: inherit; font-weight: 600; }
+  .tab.on { background: #2563eb; color: #fff; }
+  .panel { display: none; } .panel.on { display: block; }
+  .card { background: #fff; border-radius: 12px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 14px; }
+  .uyari { display: none; background: #fef3c7; border: 1px solid #f59e0b; padding: 12px 14px; border-radius: 8px; margin-bottom: 14px; }
+  .drop { border: 2px dashed #9ca3af; border-radius: 12px; padding: 26px 14px; text-align: center; cursor: pointer; color: #4b5563; }
+  .drop.over { border-color: #2563eb; background: #eff6ff; }
+  .drop strong { color: #2563eb; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+  select, button, input[type=text] { font: inherit; padding: 9px 14px; border-radius: 8px; border: 1px solid #d1d5db; background: #fff; }
+  button { cursor: pointer; }
+  button.primary { background: #2563eb; color: #fff; border-color: #2563eb; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button:not(:disabled):not(.primary):hover { background: #f3f4f6; }
+  textarea { width: 100%; min-height: 300px; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font: 15px/1.6 ui-monospace, Consolas, Menlo, monospace; resize: vertical; }
+  .meta { font-size: .85rem; color: #6b7280; margin-top: 6px; }
+  .grid { display: grid; grid-template-columns: 300px 1fr; gap: 14px; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+  .side button, .side input[type=text] { width: 100%; margin-top: 8px; }
+  .side hr { border: 0; border-top: 1px solid #e5e7eb; margin: 14px 0 6px; }
+  .side label { font-size: .85rem; color: #4b5563; display: block; margin-top: 8px; }
+  .prev { text-align: center; }
+  .prev canvas { max-width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; }
+  .nav { display: flex; gap: 10px; justify-content: center; align-items: center; margin-top: 10px; }
+  .mlist { margin-top: 8px; font-size: .9rem; }
+  .mitem { display: flex; gap: 4px; align-items: center; padding: 3px 0; }
+  .mitem span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mitem button { width: auto; margin: 0; padding: 2px 8px; }
+  .alt { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid #e5e7eb; padding: 10px 16px; }
+  .bar { height: 8px; background: #e5e7eb; border-radius: 99px; overflow: hidden; max-width: 1008px; margin: 0 auto 6px; }
+  .bar > div { height: 100%; width: 0; background: #2563eb; transition: width .15s; }
+  #durum { max-width: 1008px; margin: 0 auto; font-size: .9rem; color: #4b5563; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>OCR OKUMA</h1>
+  <div class="uyari" id="uyari">
+    Gerekli çevrimiçi kütüphaneler yüklenemedi. İnternet bağlantınızı kontrol edip uygulamayı yeniden başlatın.
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" data-p="ocr">OCR (Görsel / PDF → Metin)</button>
+    <button class="tab" data-p="pdf">PDF Araçları</button>
+  </div>
+
+  <!-- ===================== OCR ===================== -->
+  <div class="panel on" id="p-ocr">
+    <div class="card">
+      <div class="drop" id="drop">Görsel veya PDF'leri buraya sürükle ya da <strong>tıklayıp seç</strong><br>
+        <small>PNG, JPG, WEBP, BMP, PDF · Ctrl/Cmd+V ile görsel yapıştırabilirsin</small></div>
+      <input type="file" id="ocrFile" accept="image/*,application/pdf" multiple hidden>
+      <div class="meta" id="ocrListe">Dosya seçilmedi</div>
+      <div class="row">
+        <label for="lang">Dil:</label>
+        <select id="lang">
+          <option value="tur+eng" selected>Türkçe + İngilizce</option>
+          <option value="tur">Türkçe</option>
+          <option value="eng">İngilizce</option>
+          <option value="deu">Almanca</option>
+          <option value="fra">Fransızca</option>
+          <option value="spa">İspanyolca</option>
+          <option value="rus">Rusça</option>
+          <option value="ara">Arapça</option>
+        </select>
+        <label><input type="checkbox" id="gomulu" checked> PDF'te gömülü metin varsa OCR yapma (hızlı)</label>
+      </div>
+      <div class="row">
+        <button class="primary act" id="ocrRun">Metne Çevir</button>
+        <button class="act" id="aranabilir">Aranabilir PDF oluştur</button>
+      </div>
+    </div>
+    <div class="card">
+      <textarea id="out" placeholder="Okunan metin burada görünecek. Düzenleyebilirsin."></textarea>
+      <div class="meta" id="meta"></div>
+      <div class="row">
+        <button id="copy">Kopyala</button>
+        <button id="txt">.txt indir</button>
+        <button id="doc">Word (.doc) indir</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== PDF ===================== -->
+  <div class="panel" id="p-pdf">
+    <div class="grid">
+      <div class="card side">
+        <button class="primary" id="pdfAcBtn">PDF aç…</button>
+        <input type="file" id="pdfFile" accept="application/pdf" hidden>
+        <div class="meta" id="pdfBilgi">PDF açılmadı</div>
+
+        <hr>
+        <label for="aralik">Sayfa aralığı (örn. 1-3,5,8-)</label>
+        <input type="text" id="aralik" placeholder="boşsa tüm sayfalar (ayır/sil hariç)">
+        <button class="act" id="bAyir">Bu sayfalardan yeni PDF yap</button>
+        <button class="act" id="bSil">Bu sayfaları sil</button>
+        <div class="row" style="margin-top:8px">
+          <select id="aci" style="flex:1">
+            <option value="90">90° sağa</option>
+            <option value="270">90° sola</option>
+            <option value="180">180°</option>
+          </select>
+          <button class="act" id="bDondur" style="flex:1;margin-top:0">Döndür</button>
+        </div>
+
+        <hr>
+        <label for="fMetin">Filigran metni</label>
+        <input type="text" id="fMetin" placeholder="örn. TASLAK">
+        <button class="act" id="bFiligran">Filigran ekle</button>
+        <button class="act" id="bNo">Sayfa numarası ekle</button>
+        <button class="act" id="bPng">Sayfaları PNG olarak indir (.zip)</button>
+
+        <hr>
+        <label>PDF birleştir</label>
+        <button id="mEkleBtn">PDF'leri ekle…</button>
+        <input type="file" id="mFile" accept="application/pdf" multiple hidden>
+        <div class="mlist" id="mListe"></div>
+        <button class="act" id="bBirlestir">Listedekileri birleştir</button>
+      </div>
+      <div class="card prev">
+        <canvas id="onizleme" width="10" height="10"></canvas>
+        <div class="nav">
+          <button id="onceki">◀</button>
+          <span id="sayfaNo">—</span>
+          <button id="sonraki">▶</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="alt">
+  <div class="bar"><div id="fill"></div></div>
+  <div id="durum">Hazır</div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const OK = {
+  tess: typeof Tesseract !== 'undefined', pdfjs: typeof pdfjsLib !== 'undefined',
+  lib: typeof PDFLib !== 'undefined', fk: typeof fontkit !== 'undefined', zip: typeof JSZip !== 'undefined'
+};
+if (!(OK.tess && OK.pdfjs && OK.lib)) $('uyari').style.display = 'block';
+
+/* ---------------- ortak yardımcılar ---------------- */
+function ilerle(f, msg) {
+  $('fill').style.width = Math.round(Math.min(1, Math.max(0, f)) * 100) + '%';
+  if (msg) $('durum').textContent = msg;
+}
+function durum(msg) { $('durum').textContent = msg; }
+function mesgul(b) {
+  document.querySelectorAll('button.act').forEach(x => x.disabled = b);
+  document.body.style.cursor = b ? 'progress' : '';
+}
+function indir(ad, veri, tip) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(veri instanceof Blob ? veri : new Blob([veri], { type: tip }));
+  a.download = ad; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+function hataGoster(e) {
+  console.error(e);
+  const m = (e && e.message) ? e.message : String(e);
+  durum('Hata: ' + m);
+  alert('Hata: ' + m);
+}
+function aralikListe(metin, toplam, bosIseTumu) {
+  metin = metin.replace(/\s+/g, '');
+  if (!metin) {
+    if (bosIseTumu) return [...Array(toplam).keys()];
+    throw new Error('Sayfa aralığını yaz (örn. 1-3,5).');
+  }
+  const sonuc = [];
+  for (const parca of metin.split(',')) {
+    if (!parca) continue;
+    let a, b;
+    if (parca.includes('-')) {
+      const [x, y] = parca.split('-');
+      a = x ? parseInt(x, 10) : 1; b = y ? parseInt(y, 10) : toplam;
+    } else { a = b = parseInt(parca, 10); }
+    if (isNaN(a) || isNaN(b)) throw new Error("Anlaşılmayan aralık: '" + parca + "'");
+    for (let n = a; n <= b; n++) {
+      if (n < 1 || n > toplam) throw new Error(`Geçersiz sayfa: ${n} (belgede 1-${toplam} arası var)`);
+      if (!sonuc.includes(n - 1)) sonuc.push(n - 1);
+    }
+  }
+  if (!sonuc.length) throw new Error('Sayfa aralığı boş.');
+  return sonuc;
+}
+
+/* sekmeler */
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === t));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('on', p.id === 'p-' + t.dataset.p));
+});
+
+/* PDF.js worker: dosya:// altında da çalışsın diye blob olarak yüklenir */
+const PDFJS_WORKER = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+let pdfjsHazir = null;
+function hazirlaPdfjs() {
+  if (!pdfjsHazir) {
+    pdfjsHazir = (async () => {
+      const r = await fetch(PDFJS_WORKER);
+      if (!r.ok) throw new Error('PDF.js yüklenemedi');
+      const t = await r.text();
+      pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([t], { type: 'text/javascript' }));
+    })().catch(e => { pdfjsHazir = null; throw e; });
+  }
+  return pdfjsHazir;
+}
+
+/* Türkçe karakter destekli yazı tipi (pdf-lib için) */
+const FONT_URLS = [
+  'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoSans/NotoSans-Regular.ttf',
+  'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf'
+];
+let fontBytes = null;
+async function fontYukle(doc) {
+  if (OK.fk) {
+    doc.registerFontkit(fontkit);
+    if (!fontBytes) {
+      for (const u of FONT_URLS) {
+        try { const r = await fetch(u); if (r.ok) { fontBytes = await r.arrayBuffer(); break; } } catch (e) {}
+      }
+    }
+    if (fontBytes) {
+      try { return { font: await doc.embedFont(fontBytes, { subset: true }), std: false }; }
+      catch (e) { fontBytes = null; }
+    }
+  }
+  return { font: await doc.embedFont(PDFLib.StandardFonts.Helvetica), std: true };
+}
+const TRMAP = { 'ğ': 'g', 'Ğ': 'G', 'ş': 's', 'Ş': 'S', 'ı': 'i', 'İ': 'I', 'ç': 'c', 'Ç': 'C', 'ö': 'o', 'Ö': 'O', 'ü': 'u', 'Ü': 'U' };
+const ascii = t => t.replace(/[ğĞşŞıİçÇöÖüÜ]/g, c => TRMAP[c]);
+
+/* ======================= OCR ======================= */
+let ocrDosyalar = [];
+const pdfMi = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+
+function ocrDosyaAyarla(liste) {
+  ocrDosyalar = [...liste].filter(f => f.type.startsWith('image/') || pdfMi(f));
+  $('ocrListe').textContent = ocrDosyalar.length
+    ? ocrDosyalar.map(f => f.name).join(', ') : 'Desteklenen dosya bulunamadı';
+}
+const drop = $('drop');
+drop.onclick = () => $('ocrFile').click();
+$('ocrFile').onchange = e => ocrDosyaAyarla(e.target.files);
+['dragover', 'dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => ocrDosyaAyarla(e.dataTransfer.files));
+document.addEventListener('paste', e => {
+  const it = [...(e.clipboardData ? e.clipboardData.items : [])].find(i => i.type.startsWith('image/'));
+  if (it) ocrDosyaAyarla([it.getAsFile()]);
+});
+
+async function toplamBirim() {
+  let n = 0;
+  for (const f of ocrDosyalar) {
+    if (pdfMi(f)) {
+      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise;
+      n += pdf.numPages; pdf.destroy();
+    } else n++;
+  }
+  return n;
+}
+
+/* Her sayfa/görsel için {etiket, text | canvas, k} üretir (k: canvas pikselinden PDF puntosuna katsayı) */
+async function* birimler(gomulu, olcek) {
+  for (const f of ocrDosyalar) {
+    if (pdfMi(f)) {
+      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise;
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const sayfa = await pdf.getPage(i);
+        const etiket = `${f.name} - sayfa ${i}`;
+        if (gomulu) {
+          const tc = await sayfa.getTextContent();
+          const s = tc.items.map(x => x.str + (x.hasEOL ? '\n' : '')).join('').trim();
+          if (s.length > 20) { yield { etiket, text: s }; continue; }
+        }
+        const vp = sayfa.getViewport({ scale: olcek });
+        const c = document.createElement('canvas');
+        c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
+        await sayfa.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+        yield { etiket, canvas: c, k: 1 / olcek };
+      }
+      pdf.destroy();
+    } else {
+      const bmp = await createImageBitmap(f);
+      const c = document.createElement('canvas');
+      c.width = bmp.width; c.height = bmp.height;
+      c.getContext('2d').drawImage(bmp, 0, 0);
+      yield { etiket: f.name, canvas: c, k: 72 / 150 };
+    }
+  }
+}
+
+const TR_DURUM = {
+  'loading tesseract core': 'OCR motoru yükleniyor…',
+  'initializing tesseract': 'Başlatılıyor…',
+  'loading language traineddata': 'Dil verisi indiriliyor…',
+  'initializing api': 'Hazırlanıyor…'
+};
+
+async function ocrWorker(lang, ilerleFn) {
+  return Tesseract.createWorker(lang, 1, {
+    logger: m => ilerleFn(m)
+  });
+}
+
+$('ocrRun').onclick = async () => {
+  if (!ocrDosyalar.length) return alert('Önce bir görsel veya PDF seç.');
+  mesgul(true); $('out').value = ''; $('meta').textContent = '';
+  const t0 = performance.now();
+  let worker = null;
+  try {
+    await hazirlaPdfjs();
+    const toplam = await toplamBirim();
+    const lang = $('lang').value;
+    let bitti = 0, etiket = '';
+    const parcalar = [];
+    for await (const u of birimler($('gomulu').checked, 2.5)) {
+      etiket = u.etiket;
+      let metin = u.text;
+      if (metin === undefined) {
+        if (!worker) worker = await ocrWorker(lang, m => {
+          if (m.status === 'recognizing text') ilerle((bitti + m.progress) / toplam, `${etiket} okunuyor… ${Math.round(m.progress * 100)}%`);
+          else ilerle(bitti / toplam, TR_DURUM[m.status] || m.status);
+        });
+        const { data } = await worker.recognize(u.canvas);
+        metin = data.text.trim();
+      }
+      bitti++;
+      parcalar.push([etiket, metin]);
+      ilerle(bitti / toplam, `${etiket} tamamlandı`);
+    }
+    const cok = parcalar.length > 1;
+    const tam = parcalar.map(([e, m]) => cok ? `--- ${e} ---\n${m}` : m).join('\n\n');
+    $('out').value = tam;
+    $('meta').textContent = `${parcalar.length} sayfa/görsel · ${tam.length} karakter · ${((performance.now() - t0) / 1000).toFixed(1)} sn`;
+    ilerle(1, 'Tamamlandı');
+  } catch (e) {
+    hataGoster(e);
+  } finally {
+    if (worker) await worker.terminate();
+    mesgul(false);
+  }
+};
+
+$('aranabilir').onclick = async () => {
+  if (!ocrDosyalar.length) return alert('Önce bir görsel veya PDF seç.');
+  mesgul(true);
+  let worker = null;
+  try {
+    await hazirlaPdfjs();
+    const toplam = await toplamBirim();
+    const lang = $('lang').value;
+    const doc = await PDFLib.PDFDocument.create();
+    const { font, std } = await fontYukle(doc);
+    let bitti = 0, etiket = '';
+    for await (const u of birimler(false, 2.5)) {
+      etiket = u.etiket;
+      if (!worker) worker = await ocrWorker(lang, m => {
+        if (m.status === 'recognizing text') ilerle((bitti + m.progress) / toplam, `${etiket} okunuyor… ${Math.round(m.progress * 100)}%`);
+        else ilerle(bitti / toplam, TR_DURUM[m.status] || m.status);
+      });
+      const { data } = await worker.recognize(u.canvas);
+      const jpg = await (await fetch(u.canvas.toDataURL('image/jpeg', 0.85))).arrayBuffer();
+      const img = await doc.embedJpg(jpg);
+      const k = u.k, pw = u.canvas.width * k, ph = u.canvas.height * k;
+      const sayfa = doc.addPage([pw, ph]);
+      sayfa.drawImage(img, { x: 0, y: 0, width: pw, height: ph });
+      for (const w of (data.words || [])) {
+        const t = std ? ascii(w.text) : w.text;
+        if (!t || !t.trim()) continue;
+        try {
+          const h = (w.bbox.y1 - w.bbox.y0) * k, wd = (w.bbox.x1 - w.bbox.x0) * k;
+          let size = Math.max(h * 0.85, 2);
+          const tw = font.widthOfTextAtSize(t, size);
+          if (tw > 0) size = Math.max(2, Math.min(size * wd / tw, h * 1.6));
+          sayfa.drawText(t, { x: w.bbox.x0 * k, y: ph - w.bbox.y1 * k + h * 0.2, size, font, opacity: 0 });
+        } catch (e) { /* desteklenmeyen karakter: atla */ }
+      }
+      bitti++;
+      ilerle(bitti / toplam, `${etiket} işlendi`);
+    }
+    const bytes = await doc.save();
+    indir('aranabilir.pdf', bytes, 'application/pdf');
+    ilerle(1, 'Aranabilir PDF indirildi');
+  } catch (e) {
+    hataGoster(e);
+  } finally {
+    if (worker) await worker.terminate();
+    mesgul(false);
+  }
+};
+
+$('copy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('out').value); }
+  catch (e) { $('out').select(); document.execCommand('copy'); }
+  $('copy').textContent = 'Kopyalandı ✓';
+  setTimeout(() => $('copy').textContent = 'Kopyala', 1500);
+};
+$('txt').onclick = () => indir('metin.txt', '﻿' + $('out').value, 'text/plain;charset=utf-8');
+$('doc').onclick = () => {
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const html = '<html><head><meta charset="utf-8"></head><body>' +
+    $('out').value.split(/\n{2,}/).map(p => '<p>' + esc(p).replace(/\n/g, '<br>') + '</p>').join('') + '</body></html>';
+  indir('metin.doc', html, 'application/msword');
+};
+
+/* ======================= PDF ARAÇLARI ======================= */
+let cur = { bytes: null, ad: '', pdf: null, n: 0, p: 0 };
+
+async function pdfYukle(bytes, ad) {
+  await hazirlaPdfjs();
+  const pdf = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+  if (cur.pdf) cur.pdf.destroy();
+  cur = { bytes, ad, pdf, n: pdf.numPages, p: 0 };
+  $('pdfBilgi').textContent = `${ad} · ${pdf.numPages} sayfa · ${(bytes.length / 1024).toFixed(0)} KB`;
+  await onizle();
+}
+async function onizle() {
+  if (!cur.pdf) return;
+  const sayfa = await cur.pdf.getPage(cur.p + 1);
+  const vp1 = sayfa.getViewport({ scale: 1 });
+  const olcek = Math.min(1.8, 640 / vp1.width);
+  const vp = sayfa.getViewport({ scale: olcek });
+  const c = $('onizleme');
+  c.width = vp.width; c.height = vp.height;
+  await sayfa.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+  $('sayfaNo').textContent = `Sayfa ${cur.p + 1} / ${cur.n}`;
+}
+$('onceki').onclick = () => { if (cur.pdf && cur.p > 0) { cur.p--; onizle(); } };
+$('sonraki').onclick = () => { if (cur.pdf && cur.p < cur.n - 1) { cur.p++; onizle(); } };
+
+$('pdfAcBtn').onclick = () => $('pdfFile').click();
+$('pdfFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { await pdfYukle(new Uint8Array(await f.arrayBuffer()), f.name); durum('PDF açıldı'); }
+  catch (err) { hataGoster(err); }
+  e.target.value = '';
+};
+
+function pdfVarMi() {
+  if (!cur.bytes) { alert('Önce bir PDF aç.'); return false; }
+  return true;
+}
+
+/* Açık PDF'in kopyası üzerinde işlem yapar, sonucu indirir ve yeni PDF olarak açar */
+async function islem(ad, fn, onek) {
+  if (!pdfVarMi()) return;
+  mesgul(true); ilerle(0.1, ad + '…');
+  try {
+    let src;
+    try { src = await PDFLib.PDFDocument.load(cur.bytes); }
+    catch (e) { throw new Error('PDF açılamadı (şifreli veya bozuk olabilir): ' + e.message); }
+    const cikis = await fn(src);
+    const bytes = await cikis.save();
+    const yeniAd = cur.ad.replace(/\.pdf$/i, '') + onek + '.pdf';
+    indir(yeniAd, bytes, 'application/pdf');
+    await pdfYukle(bytes, yeniAd);
+    ilerle(1, `${ad} tamam · "${yeniAd}" indirildi ve açıldı`);
+  } catch (e) { hataGoster(e); }
+  finally { mesgul(false); }
+}
+const aralikAl = (toplam, bosIseTumu) => aralikListe($('aralik').value, toplam, bosIseTumu);
+
+$('bAyir').onclick = () => islem('Sayfaları ayır', async src => {
+  const idx = aralikAl(src.getPageCount(), false);
+  const out = await PDFLib.PDFDocument.create();
+  (await out.copyPages(src, idx)).forEach(p => out.addPage(p));
+  return out;
+}, '_secili');
+
+$('bSil').onclick = () => islem('Sayfaları sil', async src => {
+  const n = src.getPageCount();
+  const idx = aralikAl(n, false);
+  if (idx.length >= n) throw new Error('Tüm sayfalar silinemez.');
+  [...idx].sort((a, b) => b - a).forEach(i => src.removePage(i));
+  return src;
+}, '_silinmis');
+
+$('bDondur').onclick = () => islem('Döndür', async src => {
+  const deg = parseInt($('aci').value, 10);
+  for (const i of aralikAl(src.getPageCount(), true)) {
+    const p = src.getPage(i);
+    p.setRotation(PDFLib.degrees((p.getRotation().angle + deg) % 360));
+  }
+  return src;
+}, '_dondurulmus');
+
+$('bFiligran').onclick = () => {
+  const metin = $('fMetin').value.trim();
+  if (!metin) return alert('Filigran metnini yaz.');
+  return islem('Filigran', async src => {
+    const { font, std } = await fontYukle(src);
+    const t = std ? ascii(metin) : metin;
+    const th = Math.PI / 4;
+    for (const i of aralikAl(src.getPageCount(), true)) {
+      const p = src.getPage(i);
+      const { width: pw, height: ph } = p.getSize();
+      let size = 100;
+      let w = font.widthOfTextAtSize(t, size);
+      size = Math.min(120, size * (Math.min(pw, ph) * 0.95) / w);
+      w = font.widthOfTextAtSize(t, size);
+      const h = size * 0.7, cx = pw / 2, cy = ph / 2;
+      p.drawText(t, {
+        x: cx - (w / 2) * Math.cos(th) + (h / 2) * Math.sin(th),
+        y: cy - (w / 2) * Math.sin(th) - (h / 2) * Math.cos(th),
+        size, font, color: PDFLib.rgb(0.5, 0.5, 0.5), opacity: 0.25, rotate: PDFLib.degrees(45)
+      });
+    }
+    return src;
+  }, '_filigranli');
+};
+
+$('bNo').onclick = () => islem('Sayfa numarası', async src => {
+  const { font } = await fontYukle(src);
+  const n = src.getPageCount();
+  src.getPages().forEach((p, i) => {
+    const t = `${i + 1} / ${n}`;
+    const w = font.widthOfTextAtSize(t, 10);
+    p.drawText(t, { x: p.getWidth() / 2 - w / 2, y: 18, size: 10, font, color: PDFLib.rgb(0.2, 0.2, 0.2) });
+  });
+  return src;
+}, '_numarali');
+
+$('bPng').onclick = async () => {
+  if (!pdfVarMi()) return;
+  if (!OK.zip) return alert('JSZip yüklenemedi.');
+  mesgul(true);
+  try {
+    const zip = new JSZip();
+    const taban = cur.ad.replace(/\.pdf$/i, '');
+    for (let i = 1; i <= cur.n; i++) {
+      const sayfa = await cur.pdf.getPage(i);
+      const vp = sayfa.getViewport({ scale: 2 });
+      const c = document.createElement('canvas');
+      c.width = vp.width; c.height = vp.height;
+      await sayfa.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+      const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+      zip.file(`${taban}_sayfa${i}.png`, blob);
+      ilerle(i / cur.n, `Sayfa ${i} / ${cur.n} çevrildi`);
+    }
+    indir(taban + '_png.zip', await zip.generateAsync({ type: 'blob' }), 'application/zip');
+    ilerle(1, 'PNG dosyaları .zip olarak indirildi');
+  } catch (e) { hataGoster(e); }
+  finally { mesgul(false); }
+};
+
+/* birleştirme listesi */
+let birlesecek = [];
+function mListeCiz() {
+  const kutu = $('mListe'); kutu.innerHTML = '';
+  birlesecek.forEach((f, i) => {
+    const s = document.createElement('div'); s.className = 'mitem';
+    const ad = document.createElement('span'); ad.textContent = `${i + 1}. ${f.name}`; ad.title = f.name;
+    const mk = (t, fn) => { const b = document.createElement('button'); b.textContent = t; b.onclick = fn; return b; };
+    s.append(ad,
+      mk('▲', () => { if (i > 0) { [birlesecek[i - 1], birlesecek[i]] = [birlesecek[i], birlesecek[i - 1]]; mListeCiz(); } }),
+      mk('▼', () => { if (i < birlesecek.length - 1) { [birlesecek[i + 1], birlesecek[i]] = [birlesecek[i], birlesecek[i + 1]]; mListeCiz(); } }),
+      mk('✕', () => { birlesecek.splice(i, 1); mListeCiz(); }));
+    kutu.appendChild(s);
+  });
+}
+$('mEkleBtn').onclick = () => $('mFile').click();
+$('mFile').onchange = e => { birlesecek.push(...e.target.files); e.target.value = ''; mListeCiz(); };
+$('bBirlestir').onclick = async () => {
+  if (birlesecek.length < 2) return alert('Birleştirmek için en az iki PDF ekle.');
+  mesgul(true);
+  try {
+    const out = await PDFLib.PDFDocument.create();
+    let n = 0;
+    for (const f of birlesecek) {
+      let d;
+      try { d = await PDFLib.PDFDocument.load(await f.arrayBuffer()); }
+      catch (e) { throw new Error(`"${f.name}" açılamadı (şifreli veya bozuk olabilir).`); }
+      (await out.copyPages(d, d.getPageIndices())).forEach(p => out.addPage(p));
+      ilerle(++n / birlesecek.length, `${f.name} eklendi`);
+    }
+    const bytes = await out.save();
+    indir('birlestirilmis.pdf', bytes, 'application/pdf');
+    await pdfYukle(bytes, 'birlestirilmis.pdf');
+    ilerle(1, `${birlesecek.length} PDF birleştirildi, indirildi ve açıldı`);
+  } catch (e) { hataGoster(e); }
+  finally { mesgul(false); }
+};
+</script>
+</body>
+</html>
