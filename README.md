@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/34973037/README.md)
 # OCR OKUMA – Masaüstü uygulama projesi
 
 Bu proje, sağlanan HTML uygulamasını Electron masaüstü penceresinde çalıştırır.
