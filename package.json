@@ -21,10 +21,11 @@
     "directories": {
       "output": "dist"
     },
-    "files": [
-      "main.js",
-      "app/**/*",
-      "package.json"
+"files": [
+  "main.js",
+  "index.html",
+  "package.json"
+]
     ],
     "win": {
       "target": [
