@@ -1,3 +1,4 @@
+
 {
   "name": "ocr-okuma",
   "version": "1.0.0",
@@ -21,11 +22,10 @@
     "directories": {
       "output": "dist"
     },
-"files": [
-  "main.js",
-  "index.html",
-  "package.json"
-]
+    "files": [
+      "main.js",
+      "index.html",
+      "package.json"
     ],
     "win": {
       "target": [
