@@ -18,7 +18,7 @@ function createWindow() {
     }
   });
 
-  win.loadFile(path.join(__dirname, "app", "index.html"));
+ win.loadFile(path.join(__dirname, "index.html"));
 
   // Keep navigation inside the app; open any external page in the user's browser.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -26,7 +26,7 @@ function createWindow() {
     return { action: "deny" };
   });
   win.webContents.on("will-navigate", (event, url) => {
-    const localFile = path.join(__dirname, "app", "index.html");
+    const localFile = path.join(__dirname, "index.html");
     if (url !== `file://${localFile}` && !url.startsWith("file://")) {
       event.preventDefault();
       if (url.startsWith("https://") || url.startsWith("http://")) shell.openExternal(url);
