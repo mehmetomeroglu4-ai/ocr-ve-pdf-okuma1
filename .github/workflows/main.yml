@@ -1,0 +1,33 @@
+name: Windows EXE Olustur
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Paketleri kur
+        run: npm install
+
+      - name: Windows EXE olustur
+        run: npm run build:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: EXE dosyasini yukle
+        uses: actions/upload-artifact@v4
+        with:
+          name: OCR-OKUMA-Windows
+          path: dist/*.exe
+          if-no-files-found: error
