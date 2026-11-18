@@ -1,49 +1,9 @@
+
 {
   "name": "ocr-okuma",
   "version": "1.0.0",
   "description": "OCR OKUMA - Görsel/PDF metin tanıma ve PDF araçları",
   "main": "main.js",
   "author": "OCR OKUMA",
-  "license": "UNLICENSED",
-  "scripts": {
-    "start": "electron .",
-    "build:win": "electron-builder --win portable",
-    "build:mac": "electron-builder --mac dmg zip"
-  },
-  "devDependencies": {
-    "electron": "^35.0.0",
-    "electron-builder": "^26.0.12"
-  },
-  "build": {
-    "appId": "com.ocrokuma.desktop",
-    "productName": "OCR OKUMA",
-    "asar": true,
-    "directories": {
-      "output": "dist"
-    },
-    "files": [
-      "main.js",
-      "app/**/*",
-      "package.json"
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "artifactName": "OCR-OKUMA-Windows-${version}.${ext}"
-    },
-    "mac": {
-      "target": [
-        "dmg",
-        "zip"
-      ],
-      "category": "public.app-category.productivity",
-      "artifactName": "OCR-OKUMA-macOS-${version}.${ext}"
-    }
-  }
+  "license": "UNLICENSED"
 }
