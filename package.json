@@ -31,18 +31,13 @@
       "target": [
         {
           "target": "portable",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
         }
       ],
       "artifactName": "OCR-OKUMA-Windows-${version}.${ext}"
     },
     "mac": {
-      "target": [
-        "dmg",
-        "zip"
-      ],
+      "target": ["dmg", "zip"],
       "category": "public.app-category.productivity",
       "artifactName": "OCR-OKUMA-macOS-${version}.${ext}"
     }
